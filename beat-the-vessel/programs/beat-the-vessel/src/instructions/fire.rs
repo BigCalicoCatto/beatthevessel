@@ -3,6 +3,7 @@ use crate::state::{Game, GameStatus};
 use crate::errors::BeatTheVesselError;
 
 pub const TURN_TIMEOUT_SECONDS: i64 = 20;
+pub const PLACEMENT_TIMEOUT_SECONDS: i64 = 60;
 
 #[derive(Accounts)]
 pub struct Fire<'info> {
