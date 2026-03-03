@@ -35,7 +35,7 @@ pub mod beat_the_vessel {
         instructions::fire::handler(ctx, row, col)
     }
 
-    pub fn reveal_board(ctx: Context<RevealBoard>, secret: [u8; 32], ships: Vec<ShipPlacement>) -> Result<()> {
+    pub fn reveal_board(ctx: Context<RevealBoard>, ships: Vec<ShipPlacement>) -> Result<()> {
         instructions::reveal::handler(ctx, secret, ships)
     }
 

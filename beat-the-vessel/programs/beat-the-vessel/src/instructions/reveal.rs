@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::hash;
 use crate::state::{Game, GameStatus, Player, PlayerStatus, Ship};
 use crate::errors::BeatTheVesselError;
 
@@ -31,7 +30,7 @@ pub struct RevealBoard<'info> {
     pub game: Account<'info, Game>,
 }
 
-pub fn handler(ctx: Context<RevealBoard>, secret: [u8; 32], ships: Vec<ShipPlacement>) -> Result<()> {
+pub fn handler(ctx: Context<RevealBoard>, ships: Vec<ShipPlacement>) -> Result<()> {
     let game        = &mut ctx.accounts.game;
     let player_acct = &mut ctx.accounts.player_account;
     let player_key  = ctx.accounts.player.key();
@@ -48,20 +47,14 @@ pub fn handler(ctx: Context<RevealBoard>, secret: [u8; 32], ships: Vec<ShipPlace
 
     let is_player_one = player_key == game.player_one;
 
+    // Build board from ship placements
     let mut board = [0u8; 100];
     for ship in &ships {
         require!(ship.size >= 2 && ship.size <= 4, BeatTheVesselError::InvalidBoardCommit);
         place_ship(&mut board, ship)?;
     }
 
-    let mut preimage = [0u8; 132];
-    preimage[..100].copy_from_slice(&board);
-    preimage[100..].copy_from_slice(&secret);
-    let computed_hash = hash::hash(&preimage).to_bytes();
-
-    let stored_commit = if is_player_one { game.player_one_commit } else { game.player_two_commit };
-    require!(computed_hash == stored_commit, BeatTheVesselError::InvalidBoardCommit);
-
+    // Reconcile opponent's shots against this board
     let opponent_shots = if is_player_one {
         &mut game.player_two_shots
     } else {
@@ -74,8 +67,13 @@ pub fn handler(ctx: Context<RevealBoard>, secret: [u8; 32], ships: Vec<ShipPlace
         }
     }
 
-    let opponent_shots_snap = if is_player_one { game.player_two_shots } else { game.player_one_shots };
+    let opponent_shots_snap = if is_player_one {
+        game.player_two_shots
+    } else {
+        game.player_one_shots
+    };
 
+    // Store ships
     let revealed_ships: [Ship; 4] = std::array::from_fn(|i| {
         let sp = &ships[i];
         let sunk = is_ship_sunk(&board, sp, &opponent_shots_snap);
@@ -88,6 +86,7 @@ pub fn handler(ctx: Context<RevealBoard>, secret: [u8; 32], ships: Vec<ShipPlace
         game.player_two_ships = revealed_ships;
     }
 
+    // Check win condition
     if Game::all_ships_sunk(&opponent_shots_snap) {
         let winner = if is_player_one { game.player_two } else { game.player_one };
         game.status = GameStatus::Finished;

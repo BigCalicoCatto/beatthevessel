@@ -22,7 +22,7 @@ pub struct CommitBoard<'info> {
     pub game: Account<'info, Game>,
 }
 
-pub fn handler(ctx: Context<CommitBoard>, commitment: [u8; 32]) -> Result<()> {
+pub fn handler(ctx: Context<CommitBoard>, board: [u8; 100]) -> Result<()> {
     let game        = &mut ctx.accounts.game;
     let player_acct = &mut ctx.accounts.player_account;
     let player_key  = ctx.accounts.player.key();
@@ -34,20 +34,24 @@ pub fn handler(ctx: Context<CommitBoard>, commitment: [u8; 32]) -> Result<()> {
     );
 
     let is_player_one = player_key == game.player_one;
-    let existing_commit = if is_player_one { game.player_one_commit } else { game.player_two_commit };
-    require!(existing_commit == [0u8; 32], BeatTheVesselError::BoardAlreadyCommitted);
+    let existing = if is_player_one { game.player_one_commit } else { game.player_two_commit };
+    require!(existing == [0u8; 32], BeatTheVesselError::BoardAlreadyCommitted);
 
+    // Store first 32 bytes as a marker that board is set
+    // Full board stored in shots array repurposed temporarily
     if is_player_one {
-        game.player_one_commit = commitment;
+        game.player_one_commit = [1u8; 32];
+        game.player_one_shots = board;
     } else {
-        game.player_two_commit = commitment;
+        game.player_two_commit = [1u8; 32];
+        game.player_two_shots = board;
     }
 
-    let both_committed = game.player_one_commit != [0u8; 32] && game.player_two_commit != [0u8; 32];
     player_acct.status = PlayerStatus::Playing;
 
-    if both_committed {
-        msg!("Both boards committed. Game is fully underway!");
+    let both = game.player_one_commit != [0u8; 32] && game.player_two_commit != [0u8; 32];
+    if both {
+        msg!("Both boards committed. Game underway!");
     } else {
         msg!("Board committed by {}. Waiting for opponent.", player_key);
     }
