@@ -27,15 +27,15 @@ pub mod beat_the_vessel {
         instructions::join_game::handler(ctx)
     }
 
-    pub fn commit_board(ctx: Context<CommitBoard>, commitment: [u8; 32]) -> Result<()> {
-        instructions::commit_board::handler(ctx, commitment)
+    pub fn commit_board(ctx: Context<CommitBoard>, board: [u8; 100]) -> Result<()> {
+        instructions::commit_board::handler(ctx, board)
     }
 
     pub fn fire(ctx: Context<Fire>, row: u8, col: u8) -> Result<()> {
         instructions::fire::handler(ctx, row, col)
     }
 
-    pub fn reveal_board(ctx: Context<RevealBoard>, ships: Vec<ShipPlacement>) -> Result<()> {
+    pub fn reveal_board(ctx: Context<RevealBoard>, secret: [u8; 32], ships: Vec<ShipPlacement>) -> Result<()> {
         instructions::reveal::handler(ctx, secret, ships)
     }
 

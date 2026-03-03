@@ -250,6 +250,7 @@ name = "beat-the-vessel"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "sha2",
 ]
 
 [[package]]
