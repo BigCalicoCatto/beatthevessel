@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-beat_the_vessel = "8W49HftPrZ6gubLQLB2URKsQJxxteU2kVFpSDEr74sKv"
+beat_the_vessel = "GcQeeFpckZ9PJNz427wG8pQxrWkNtS3U66GrGPVSe2bm"
 
 [registry]
 url = "https://api.apr.dev"

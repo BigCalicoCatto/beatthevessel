@@ -14,7 +14,7 @@ use instructions::{
     claim_win::*,
 };
 
-declare_id!("8W49HftPrZ6gubLQLB2URKsQJxxteU2kVFpSDEr74sKv");
+declare_id!("GcQeeFpckZ9PJNz427wG8pQxrWkNtS3U66GrGPVSe2bm");
 
 #[program]
 pub mod beat_the_vessel {
