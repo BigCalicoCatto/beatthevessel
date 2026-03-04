@@ -1,9 +1,10 @@
 'use client';
 
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet, useAnchorWallet } from '@solana/wallet-adapter-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, SystemProgram } from '@solana/web3.js';
+import { getProgram, getGamePDA, getPlayerPDA } from '@/lib/program';
 
 type Phase = 'placing' | 'waiting' | 'battle' | 'gameover';
 type Cell = 'empty' | 'ship' | 'hit' | 'miss';
@@ -25,7 +26,8 @@ const COLS = ['A','B','C','D','E','F','G','H','I','J'];
 const ROWS = ['1','2','3','4','5','6','7','8','9','10'];
 
 export default function GamePage() {
-  const { connected } = useWallet();
+  const { connected, publicKey } = useWallet();
+  const anchorWallet = useAnchorWallet();
   const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>('placing');
@@ -42,11 +44,16 @@ export default function GamePage() {
   const [hoverCells, setHoverCells] = useState<number[]>([]);
   const [allPlaced, setAllPlaced] = useState(false);
   const [placedCount, setPlacedCount] = useState(0);
+  const [cancelling, setCancelling] = useState(false);
+  const [status, setStatus] = useState('');
+  const [role, setRole] = useState('creator');
 
   useEffect(() => {
     if (!connected) router.push('/');
     const w = localStorage.getItem('wager');
+    const r = localStorage.getItem('role');
     if (w) setWager((parseInt(w) / LAMPORTS_PER_SOL).toFixed(2));
+    if (r) setRole(r);
   }, [connected]);
 
   useEffect(() => {
@@ -90,52 +97,60 @@ export default function GamePage() {
     const cells = getShipCells(idx, ship.size, horizontal);
     if (cells.length !== ship.size) return;
     if (cells.some(c => myBoard[c] === 'ship')) return;
-
     const newBoard = [...myBoard];
     cells.forEach(c => { newBoard[c] = 'ship'; });
     setMyBoard(newBoard);
-
     const newShips = [...ships];
     newShips[selectedShip] = { ...ship, placed: true };
     setShips(newShips);
-
     const nextUnplaced = newShips.findIndex(s => !s.placed);
-    const count = newShips.filter(s => s.placed).length;
-    setPlacedCount(count);
-
-    if (nextUnplaced === -1) {
-      setAllPlaced(true);
-    } else {
-      setSelectedShip(nextUnplaced);
-    }
+    setPlacedCount(newShips.filter(s => s.placed).length);
+    if (nextUnplaced === -1) { setAllPlaced(true); } else { setSelectedShip(nextUnplaced); }
   };
 
   const handleCommitBoard = () => {
     setPhase('waiting');
-    setTimeout(() => {
-      setPhase('battle');
-      setTurnTimer(20);
-    }, 2000);
+    setTimeout(() => { setPhase('battle'); setTurnTimer(20); }, 2000);
+  };
+
+  const handleCancelGame = async () => {
+    if (!anchorWallet || !publicKey) return;
+    setCancelling(true);
+    setStatus('Cancelling game and refunding SOL...');
+    try {
+      const program = getProgram(anchorWallet);
+      const [gamePDA] = getGamePDA(publicKey);
+      const [playerPDA] = getPlayerPDA(publicKey);
+      await program.methods
+        .cancelGame()
+        .accounts({
+          creator: publicKey,
+          playerAccount: playerPDA,
+          game: gamePDA,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+      setStatus('Refunded! Returning to lobby...');
+      setTimeout(() => router.push('/lobby'), 1500);
+    } catch (e: any) {
+      setStatus('Error: ' + (e.message || 'Cancel failed'));
+    }
+    setCancelling(false);
   };
 
   const handleFireShot = (idx: number) => {
     if (phase !== 'battle' || !myTurn) return;
     if (enemyBoard[idx] !== 'empty') return;
-
     const newBoard = [...enemyBoard];
     const isHit = Math.random() > 0.6;
     newBoard[idx] = isHit ? 'hit' : 'miss';
     setEnemyBoard(newBoard);
-
     const hits = newBoard.filter(c => c === 'hit').length;
     if (hits >= 12) { setWinner('me'); setPhase('gameover'); return; }
-
     setMyTurn(false);
     setTurnTimer(20);
-
     setTimeout(() => {
-      const available = Array.from({length: 100}, (_, i) => i)
-        .filter(i => myBoard[i] === 'empty' || myBoard[i] === 'ship');
+      const available = Array.from({length: 100}, (_, i) => i).filter(i => myBoard[i] === 'empty' || myBoard[i] === 'ship');
       if (!available.length) return;
       const shot = available[Math.floor(Math.random() * available.length)];
       const newMyBoard = [...myBoard];
@@ -210,15 +225,30 @@ export default function GamePage() {
         backdropFilter: 'blur(10px)', zIndex: 100, background: 'rgba(2,12,20,0.9)',
       }}>
         <span className="font-display" style={{ fontSize: '18px', letterSpacing: '4px' }}>BEAT THE VESSEL</span>
-        <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
           <div className="font-mono" style={{ color: '#6a9ab8', fontSize: '11px', letterSpacing: '2px' }}>
             WAGER: <span style={{ color: '#00ff88' }}>{wager} SOL</span>
           </div>
           <div className="font-mono" style={{ color: '#6a9ab8', fontSize: '11px', letterSpacing: '2px' }}>
             POT: <span style={{ color: '#ffc400' }}>{(parseFloat(wager) * 2 * 0.9).toFixed(2)} SOL</span>
           </div>
+          {role === 'creator' && phase === 'placing' && (
+            <button onClick={handleCancelGame} disabled={cancelling} className="btn-danger" style={{ fontSize: '14px', padding: '8px 16px' }}>
+              {cancelling ? 'CANCELLING...' : 'CANCEL & REFUND'}
+            </button>
+          )}
         </div>
       </nav>
+
+      {status && (
+        <div style={{
+          position: 'fixed', top: '80px', left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(0,255,136,0.1)', border: '1px solid rgba(0,255,136,0.4)',
+          color: '#00ff88', padding: '12px 24px', zIndex: 200,
+        }} className="font-mono">
+          ◆ {status}
+        </div>
+      )}
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
 
@@ -310,6 +340,9 @@ export default function GamePage() {
             </div>
             <h2 className="font-display" style={{ fontSize: '40px', letterSpacing: '6px', color: '#00ff88' }}>SCANNING FOR ENEMY...</h2>
             <p className="font-mono" style={{ color: '#6a9ab8', fontSize: '13px', letterSpacing: '2px' }}>WAITING FOR OPPONENT</p>
+            <button onClick={handleCancelGame} disabled={cancelling} className="btn-danger">
+              {cancelling ? 'CANCELLING...' : 'CANCEL & REFUND'}
+            </button>
           </div>
         )}
 
