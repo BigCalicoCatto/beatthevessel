@@ -5,6 +5,7 @@ pub mod commit_board;
 pub mod fire;
 pub mod reveal;
 pub mod claim_win;
+pub mod cancel_game;
 
 pub use create_player::*;
 pub use create_game::*;
@@ -13,3 +14,4 @@ pub use commit_board::*;
 pub use fire::*;
 pub use reveal::*;
 pub use claim_win::*;
+pub use cancel_game::*;

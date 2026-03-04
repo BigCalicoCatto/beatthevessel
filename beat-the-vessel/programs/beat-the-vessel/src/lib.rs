@@ -12,6 +12,7 @@ use instructions::{
     fire::*,
     reveal::*,
     claim_win::*,
+    cancel_game::*,
 };
 
 declare_id!("GcQeeFpckZ9PJNz427wG8pQxrWkNtS3U66GrGPVSe2bm");
@@ -46,5 +47,9 @@ pub mod beat_the_vessel {
 
     pub fn claim_win(ctx: Context<ClaimWin>) -> Result<()> {
         instructions::claim_win::handler(ctx)
+    }
+
+    pub fn cancel_game(ctx: Context<CancelGame>) -> Result<()> {
+        instructions::cancel_game::handler(ctx)
     }
 }
